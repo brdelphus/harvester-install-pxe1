@@ -230,6 +230,15 @@ write_files:
       }'
 
       echo "Disk configuration applied to node $NODE_NAME"
+  - path: /etc/sysctl.d/99-storage-optimization.conf
+    permissions: "0644"
+    owner: root:root
+    content: |
+      # Storage optimization for multiple RAID arrays
+      vm.dirty_ratio=15
+      vm.dirty_background_ratio=5
+      vm.dirty_writeback_centisecs=100
+      vm.dirty_expire_centisecs=200
 
 # Harvester configuration for optimized RAID
 harvester_config:
@@ -272,23 +281,6 @@ harvester_config:
     device: /dev/md0p1    # Install OS on 200GB partition
     data_disk: ""         # We'll handle data disks manually
     tty: ttyS0,115200n8
-
-# System optimizations
-write_files:
-  - path: /etc/sysctl.d/99-storage-optimization.conf
-    permissions: "0644"
-    owner: root:root
-    content: |
-      # Storage optimization for multiple RAID arrays
-      vm.dirty_ratio=15
-      vm.dirty_background_ratio=5
-      vm.dirty_expire_centisecs=3000
-      vm.dirty_writeback_centisecs=500
-      vm.vfs_cache_pressure=50
-
-      # Network optimizations
-      net.core.rmem_max=134217728
-      net.core.wmem_max=134217728
 
 # Run setup commands
 runcmd:
