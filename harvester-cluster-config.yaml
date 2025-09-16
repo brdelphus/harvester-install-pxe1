@@ -1,0 +1,95 @@
+# Harvester Multi-Node Cluster Configuration
+# Use this for additional nodes joining the cluster
+
+#cloud-config
+
+hostname: harvester-node-{{ node_number }}  # Replace {{ node_number }} with 02, 03, etc.
+fqdn: harvester-node-{{ node_number }}.local
+
+users:
+  - name: rancher
+    groups:
+      - sudo
+      - docker
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ssh-rsa AAAAB3NzaC1yc2E... # Replace with your actual SSH public key
+
+harvester_config:
+  # Join existing cluster - set these from the first node
+  server_url: "https://FIRST_NODE_IP:6443"  # Replace with first node's IP
+  token: "K10..."  # Replace with token from first node
+
+  networks:
+    harvester-mgmt:
+      interfaces:
+        - name: harvester-mgmt
+          hwaddr: ""
+      method: dhcp
+      bond_options:
+        mode: active-backup
+        miimon: 100
+
+  disks:
+    - device: /dev/sda
+      allow_scheduling: true
+      eviction_requested: false
+      force_formatted: false
+      tags: []
+    - device: /dev/sdb
+      allow_scheduling: true
+      eviction_requested: false
+      force_formatted: false
+      tags:
+        - storage
+
+  install:
+    mode: join  # This node will join the existing cluster
+    management_interface:
+      interfaces:
+        - name: eth0
+          hwaddr: ""
+      method: dhcp
+    device: /dev/sda
+    data_disk: /dev/sdb
+    tty: ttyS0,115200n8
+
+packages:
+  - curl
+  - wget
+  - htop
+  - iotop
+  - tcpdump
+  - net-tools
+
+timezone: UTC
+
+write_files:
+  - path: /opt/harvester/join-cluster.sh
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/bin/bash
+
+      echo "Joining Harvester cluster..."
+
+      # Wait for network connectivity
+      while ! ping -c 1 {{ FIRST_NODE_IP }} >/dev/null 2>&1; do
+        echo "Waiting for network connectivity to first node..."
+        sleep 5
+      done
+
+      echo "Successfully joined Harvester cluster!"
+
+runcmd:
+  - systemctl enable harvester
+  - systemctl start harvester
+  - chmod +x /opt/harvester/join-cluster.sh
+  - /opt/harvester/join-cluster.sh > /var/log/harvester-join.log 2>&1
+
+power_state:
+  mode: reboot
+  delay: "+1"
+  message: "Rebooting to complete cluster join"
+  condition: true

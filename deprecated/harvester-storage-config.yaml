@@ -1,0 +1,173 @@
+# Harvester Storage Configuration for OVHcloud NVMe Setup
+# 2×960 GB SSD NVMe + 2×1.92 TB SSD NVMe with Soft RAID
+
+#cloud-config
+
+# Enhanced storage configuration for NVMe drives
+harvester_config:
+  # Storage disk configuration
+  disks:
+    # Primary OS disk (960GB NVMe - first disk)
+    - device: /dev/nvme0n1
+      allow_scheduling: false  # Reserve for OS and system
+      eviction_requested: false
+      force_formatted: true
+      tags:
+        - system
+        - fast
+
+    # Secondary system disk (960GB NVMe - second disk)
+    - device: /dev/nvme1n1
+      allow_scheduling: true   # Available for workloads
+      eviction_requested: false
+      force_formatted: true
+      tags:
+        - fast
+        - compute
+
+    # Primary storage disk (1.92TB NVMe - third disk)
+    - device: /dev/nvme2n1
+      allow_scheduling: true
+      eviction_requested: false
+      force_formatted: true
+      tags:
+        - storage
+        - large
+        - fast
+
+    # Secondary storage disk (1.92TB NVMe - fourth disk)
+    - device: /dev/nvme3n1
+      allow_scheduling: true
+      eviction_requested: false
+      force_formatted: true
+      tags:
+        - storage
+        - large
+        - fast
+
+  # Install configuration optimized for NVMe
+  install:
+    mode: create
+    device: /dev/nvme0n1          # OS on first 960GB NVMe
+    data_disk: /dev/nvme2n1       # Harvester data on first 1.92TB NVMe
+    iso_url: ""
+    tty: ttyS0,115200n8
+
+# Longhorn storage class configurations
+write_files:
+  - path: /tmp/longhorn-storage-classes.yaml
+    permissions: "0644"
+    owner: root:root
+    content: |
+      # Fast storage class for critical workloads (960GB NVMe drives)
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        name: longhorn-fast
+        annotations:
+          storageclass.kubernetes.io/is-default-class: "false"
+      provisioner: driver.longhorn.io
+      allowVolumeExpansion: true
+      parameters:
+        numberOfReplicas: "2"
+        staleReplicaTimeout: "2880"
+        fromBackup: ""
+        diskSelector: "fast"
+        nodeSelector: ""
+        recurringJobSelector: '[{"name":"backup-fast", "isGroup":false}]'
+      ---
+      # Large storage class for bulk data (1.92TB NVMe drives)
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        name: longhorn-large
+        annotations:
+          storageclass.kubernetes.io/is-default-class: "true"
+      provisioner: driver.longhorn.io
+      allowVolumeExpansion: true
+      parameters:
+        numberOfReplicas: "2"
+        staleReplicaTimeout: "2880"
+        fromBackup: ""
+        diskSelector: "large"
+        nodeSelector: ""
+        recurringJobSelector: '[{"name":"backup-standard", "isGroup":false}]'
+      ---
+      # Single replica class for non-critical data
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        name: longhorn-single
+      provisioner: driver.longhorn.io
+      allowVolumeExpansion: true
+      parameters:
+        numberOfReplicas: "1"
+        staleReplicaTimeout: "2880"
+        fromBackup: ""
+        diskSelector: "large"
+        nodeSelector: ""
+
+  - path: /tmp/disk-optimization.sh
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/bin/bash
+      # NVMe disk optimization script
+
+      echo "Optimizing NVMe drives for Harvester..."
+
+      # Set I/O scheduler for NVMe drives (none/noop is best for NVMe)
+      for disk in nvme0n1 nvme1n1 nvme2n1 nvme3n1; do
+        if [ -e "/sys/block/$disk/queue/scheduler" ]; then
+          echo none > /sys/block/$disk/queue/scheduler
+          echo "Set scheduler to 'none' for $disk"
+        fi
+      done
+
+      # Optimize NVMe queue depth
+      for disk in nvme0n1 nvme1n1 nvme2n1 nvme3n1; do
+        if [ -e "/sys/block/$disk/queue/nr_requests" ]; then
+          echo 1024 > /sys/block/$disk/queue/nr_requests
+          echo "Set queue depth to 1024 for $disk"
+        fi
+      done
+
+      # Disable barriers for better performance (safe with NVMe)
+      for disk in nvme0n1 nvme1n1 nvme2n1 nvme3n1; do
+        if [ -e "/sys/block/$disk/queue/write_cache" ]; then
+          echo write back > /sys/block/$disk/queue/write_cache
+          echo "Enabled write cache for $disk"
+        fi
+      done
+
+      # Set read-ahead for better sequential performance
+      for disk in nvme0n1 nvme1n1 nvme2n1 nvme3n1; do
+        if [ -e "/sys/block/$disk/queue/read_ahead_kb" ]; then
+          echo 512 > /sys/block/$disk/queue/read_ahead_kb
+          echo "Set read-ahead to 512KB for $disk"
+        fi
+      done
+
+      echo "NVMe optimization completed"
+
+  - path: /etc/systemd/system/nvme-optimization.service
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=NVMe Drive Optimization
+      After=local-fs.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/tmp/disk-optimization.sh
+      RemainAfterExit=yes
+
+      [Install]
+      WantedBy=multi-user.target
+
+# Run optimization commands
+runcmd:
+  - systemctl enable nvme-optimization.service
+  - systemctl start nvme-optimization.service
+  - /tmp/disk-optimization.sh

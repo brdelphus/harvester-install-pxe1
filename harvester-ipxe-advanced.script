@@ -1,0 +1,49 @@
+#!ipxe
+
+# Advanced Harvester HCI iPXE Boot Script for OVHcloud
+# Includes automated installation parameters and cloud-init support
+
+echo Starting Harvester HCI automated installation...
+
+# Network configuration
+dhcp
+
+# Harvester version and download URLs
+set harvester_version v1.5.0
+set harvester_base_url https://releases.rancher.com/harvester/${harvester_version}
+set harvester_iso harvester-${harvester_version}-amd64.iso
+
+# Cloud-init configuration URL (to be hosted separately)
+set cloud_init_url http://your-server.com/harvester-cloud-init.yaml
+
+echo Downloading Harvester ${harvester_version}...
+echo Base URL: ${harvester_base_url}
+
+# Boot parameters for automated installation
+set boot_params ip=dhcp rd.live.check=0 rd.live.ram=1
+set boot_params ${boot_params} harvester.install.automatic=true
+set boot_params ${boot_params} harvester.install.config_url=${cloud_init_url}
+set boot_params ${boot_params} console=tty1 console=ttyS0,115200n8
+
+# Download kernel and initrd from ISO
+kernel ${harvester_base_url}/vmlinuz ${boot_params} || goto failed
+initrd ${harvester_base_url}/initrd || goto failed
+
+# Boot the system
+boot || goto failed
+
+:failed
+echo Failed to boot Harvester
+echo Attempting direct ISO boot as fallback...
+
+# Fallback to direct ISO boot
+kernel ${harvester_base_url}/${harvester_iso} || goto emergency
+boot || goto emergency
+
+:emergency
+echo All boot methods failed
+echo Please check:
+echo - Network connectivity
+echo - ISO availability at ${harvester_base_url}
+echo - Server hardware compatibility
+shell

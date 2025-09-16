@@ -1,0 +1,154 @@
+#cloud-config
+
+# Harvester Cloud-Init Configuration for OVHcloud Dedicated Servers
+# Optimized for AMD EPYC 8224P (24c/48t) with 192GB RAM and NVMe storage
+# This configuration automates the initial Harvester setup
+
+# System hostname and SSH configuration
+hostname: harvester-epyc-01
+fqdn: harvester-epyc-01.local
+
+# User configuration
+users:
+  - name: rancher
+    groups:
+      - sudo
+      - docker
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ssh-rsa AAAAB3NzaC1yc2E... # Replace with your actual SSH public key
+
+# Harvester-specific configuration
+harvester_config:
+  # Server URL for additional nodes to join the cluster
+  server_url: ""
+
+  # Token for cluster joining (will be generated on first node)
+  token: ""
+
+  # Network configuration
+  networks:
+    harvester-mgmt:
+      interfaces:
+        - name: harvester-mgmt
+          hwaddr: ""  # Will be auto-detected
+      method: dhcp
+      bond_options:
+        mode: active-backup
+        miimon: 100
+
+  # Storage configuration for NVMe drives
+  disks:
+    - device: /dev/nvme0n1  # 960GB NVMe - OS disk
+      allow_scheduling: false
+      eviction_requested: false
+      force_formatted: true
+      tags:
+        - system
+        - fast
+    - device: /dev/nvme1n1  # 960GB NVMe - Fast workload storage
+      allow_scheduling: true
+      eviction_requested: false
+      force_formatted: true
+      tags:
+        - fast
+        - compute
+    - device: /dev/nvme2n1  # 1.92TB NVMe - Primary storage
+      allow_scheduling: true
+      eviction_requested: false
+      force_formatted: true
+      tags:
+        - storage
+        - large
+    - device: /dev/nvme3n1  # 1.92TB NVMe - Secondary storage
+      allow_scheduling: true
+      eviction_requested: false
+      force_formatted: true
+      tags:
+        - storage
+        - large
+
+  # Virtual IP for cluster access (adjust for your network)
+  vip:
+    ip: ""  # Set to available IP in your network range
+    mode: dhcp
+
+  # Data directory
+  data_dir: /opt/harvester
+
+  # Install mode (create for first node, join for additional nodes)
+  install:
+    mode: create
+    management_interface:
+      interfaces:
+        - name: eth0  # Adjust based on OVHcloud interface naming
+          hwaddr: ""  # Will be auto-detected
+      method: dhcp
+    device: /dev/nvme0n1     # OS on first 960GB NVMe
+    data_disk: /dev/nvme2n1  # Data on first 1.92TB NVMe
+    iso_url: ""
+    tty: ttyS0,115200n8
+
+# System packages to install
+packages:
+  - curl
+  - wget
+  - htop
+  - iotop
+  - tcpdump
+  - net-tools
+
+# System timezone
+timezone: UTC
+
+# Disable cloud-init on subsequent boots
+cloud_final_modules:
+  - scripts-user
+  - ssh-authkey-fingerprints
+  - keys-to-console
+  - phone-home
+  - final-message
+  - power-state-change
+
+# Write additional configuration files
+write_files:
+  - path: /etc/rancher/rke2/config.yaml
+    permissions: "0644"
+    owner: root:root
+    content: |
+      # RKE2 configuration for Harvester
+      server: https://127.0.0.1:6443
+      token: # Will be set during installation
+
+  - path: /opt/harvester/setup.sh
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/bin/bash
+      # Post-installation setup script
+
+      echo "Starting Harvester post-installation setup..."
+
+      # Wait for Harvester to be ready
+      while ! kubectl get nodes >/dev/null 2>&1; do
+        echo "Waiting for Harvester to be ready..."
+        sleep 10
+      done
+
+      echo "Harvester installation completed successfully!"
+      echo "Access the web UI at: https://$(hostname -I | cut -d' ' -f1):443"
+
+# Run commands after installation
+runcmd:
+  - systemctl enable harvester
+  - systemctl start harvester
+  - chmod +x /opt/harvester/setup.sh
+  - /opt/harvester/setup.sh > /var/log/harvester-setup.log 2>&1
+
+# Reboot after installation (optional)
+power_state:
+  mode: reboot
+  delay: "+1"
+  message: "Rebooting to complete Harvester installation"
+  condition: true
