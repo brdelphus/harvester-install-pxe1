@@ -39,18 +39,18 @@ class OVHHarvesterDeployer:
         """Generate iPXE script for two-stage deployment"""
         if cloud_init_url is None:
             if stage == "raid_setup":
-                cloud_init_url = "https://raw.githubusercontent.com/brdelphus/harvester-install-pxe1/refs/heads/main/cloud-init-raid-setup.yaml"
+                cloud_init_url = "https://raw.githubusercontent.com/brdelphus/harvester-install-pxe1/refs/heads/main/autoyast-raid-setup.xml"
             else:
                 cloud_init_url = "https://raw.githubusercontent.com/brdelphus/harvester-install-pxe1/refs/heads/main/harvester-config.yaml"
 
         if stage == "raid_setup":
-            # Stage 1: Boot Ubuntu 24.04 netboot for RAID setup
+            # Stage 1: Boot openSUSE Leap 15.6 for RAID setup
             return f"""#!ipxe
 
-# Stage 1: Boot Ubuntu 24.04 Netboot for RAID1 Setup
+# Stage 1: Boot openSUSE Leap 15.6 for RAID1 Setup
 dhcp
-kernel https://releases.ubuntu.com/24.04/netboot/amd64/linux root=/dev/ram0 ramdisk_size=1500000 cloud-config-url={cloud_init_url} ip=dhcp url=https://releases.ubuntu.com/24.04/ubuntu-24.04.3-live-server-amd64.iso autoinstall console=tty1 console=ttyS0,115200n8
-initrd https://releases.ubuntu.com/24.04/netboot/amd64/initrd
+kernel https://download.opensuse.org/distribution/leap/15.6/repo/oss/boot/x86_64/loader/linux install=https://download.opensuse.org/distribution/leap/15.6/repo/oss/ autoyast={cloud_init_url} console=tty1 console=ttyS0,115200n8
+initrd https://download.opensuse.org/distribution/leap/15.6/repo/oss/boot/x86_64/loader/initrd
 boot"""
         else:
             # Stage 2: Boot Harvester for installation on prepared RAID

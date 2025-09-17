@@ -1,0 +1,231 @@
+<?xml version="1.0"?>
+<!DOCTYPE profile>
+<profile xmlns="http://www.suse.com/1.0/yast2ns" xmlns:config="http://www.suse.com/1.0/configns">
+  <!-- openSUSE Leap 15.6 AutoYaST for RAID1 Setup with 200GB Harvester Partition -->
+
+  <general>
+    <mode>
+      <confirm config:type="boolean">false</confirm>
+      <second_stage config:type="boolean">false</second_stage>
+    </mode>
+  </general>
+
+  <keyboard>
+    <keymap>english-us</keymap>
+  </keyboard>
+
+  <language>
+    <language>en_US</language>
+    <languages>en_US,en_GB</languages>
+  </language>
+
+  <timezone>
+    <hwclock>UTC</hwclock>
+    <timezone>UTC</timezone>
+  </timezone>
+
+  <users config:type="list">
+    <user>
+      <username>root</username>
+      <user_password>rancher123!</user_password>
+      <encrypted config:type="boolean">false</encrypted>
+    </user>
+    <user>
+      <username>rancher</username>
+      <user_password>rancher123!</user_password>
+      <encrypted config:type="boolean">false</encrypted>
+      <home>/home/rancher</home>
+      <shell>/bin/bash</shell>
+      <authorized_keys config:type="list">
+        <listentry>ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCVm0gzV/a5GHRjW25h1PKomRPHxYZK1Fz7YpDi+NTwpqQvMrw6lStU8DlSFpy03PzuzHdTTIBuonn5NGm5NJFO3p2sTXc+t0enPFghMUAcy8hGNvYFc9IzB7H378WblCRHLxN4+15t49VZPwwn6VRr6lASFFgSKL0kSkkDY8UUI5zaA1I8fsO8N9azC3IaoSQb6Gvx5FtQHtdWw792/nc6nE50vDXIrxXKM/4ICr5mLy1/drUIN8qZDDG6Kb4po0y9mk2fOHFaE7bHR7tIvLVY0vNSGgR/BmpAlSpaIGXo6MIFDKMiZmqiPFTEGJYYbOPusb9SY2U0HNL5dEnEqC7dN/C9W6oreSS3nmQz59pyYlaFt+YVt9z/w1ki9Htm7ujxifzSJr12N7OtMmTDJiXhK8wf8EPLA6y2wLdWfSkitMb848D0ELqwk7/q2z1xo/r1PG+/d/Khvoz6PtPwtA++KOsvjTTvv81qYs61Z2W9hTCuKNFluQzyaZuzPRrskzmzGCDc8h85o7NWNreMZiEAIHF9xtIQefDsTseirekLV0dDg/1Sx2A3QtMaCNd0cn0ggXmpWbjUDykb5AIloiMTqU6QvURiNysAokrJ3fc0UscI2DGXDTS2PQoC1AgHRCZyDEG4lD5x5JDI4YgxebhmmzwJagGhY2Z8+qB0C4CWHw== delphus@insight</listentry>
+      </authorized_keys>
+    </user>
+  </users>
+
+  <networking>
+    <keep_install_network config:type="boolean">true</keep_install_network>
+    <interfaces config:type="list">
+      <interface>
+        <bootproto>dhcp</bootproto>
+        <device>eth0</device>
+        <startmode>auto</startmode>
+      </interface>
+    </interfaces>
+  </networking>
+
+  <partitioning config:type="list">
+    <drive>
+      <device>/dev/nvme0n1</device>
+      <enable_snapshots config:type="boolean">false</enable_snapshots>
+      <initialize config:type="boolean">true</initialize>
+      <partitions config:type="list">
+        <partition>
+          <partition_nr config:type="integer">1</partition_nr>
+          <partition_id config:type="integer">253</partition_id>
+          <size>1G</size>
+        </partition>
+        <partition>
+          <partition_nr config:type="integer">2</partition_nr>
+          <partition_id config:type="integer">253</partition_id>
+          <size>200G</size>
+        </partition>
+        <partition>
+          <partition_nr config:type="integer">3</partition_nr>
+          <partition_id config:type="integer">253</partition_id>
+          <size>max</size>
+        </partition>
+      </partitions>
+      <type config:type="symbol">CT_DISK</type>
+      <use>all</use>
+    </drive>
+    <drive>
+      <device>/dev/nvme1n1</device>
+      <enable_snapshots config:type="boolean">false</enable_snapshots>
+      <initialize config:type="boolean">true</initialize>
+      <partitions config:type="list">
+        <partition>
+          <partition_nr config:type="integer">1</partition_nr>
+          <partition_id config:type="integer">253</partition_id>
+          <size>1G</size>
+        </partition>
+        <partition>
+          <partition_nr config:type="integer">2</partition_nr>
+          <partition_id config:type="integer">253</partition_id>
+          <size>200G</size>
+        </partition>
+        <partition>
+          <partition_nr config:type="integer">3</partition_nr>
+          <partition_id config:type="integer">253</partition_id>
+          <size>max</size>
+        </partition>
+      </partitions>
+      <type config:type="symbol">CT_DISK</type>
+      <use>all</use>
+    </drive>
+    <drive>
+      <device>/dev/md0</device>
+      <initialize config:type="boolean">true</initialize>
+      <partitions config:type="list">
+        <partition>
+          <filesystem config:type="symbol">ext4</filesystem>
+          <mount>/boot</mount>
+          <partition_id config:type="integer">131</partition_id>
+          <partition_nr config:type="integer">1</partition_nr>
+          <raid_name>/dev/md0</raid_name>
+          <size>auto</size>
+        </partition>
+      </partitions>
+      <type config:type="symbol">CT_MD</type>
+      <use>all</use>
+    </drive>
+    <drive>
+      <device>/dev/md1</device>
+      <initialize config:type="boolean">true</initialize>
+      <partitions config:type="list">
+        <partition>
+          <filesystem config:type="symbol">ext4</filesystem>
+          <mount>/harvester</mount>
+          <partition_id config:type="integer">131</partition_id>
+          <partition_nr config:type="integer">1</partition_nr>
+          <raid_name>/dev/md1</raid_name>
+          <size>auto</size>
+        </partition>
+      </partitions>
+      <type config:type="symbol">CT_MD</type>
+      <use>all</use>
+    </drive>
+    <drive>
+      <device>/dev/md2</device>
+      <initialize config:type="boolean">true</initialize>
+      <partitions config:type="list">
+        <partition>
+          <filesystem config:type="symbol">ext4</filesystem>
+          <mount>/data</mount>
+          <partition_id config:type="integer">131</partition_id>
+          <partition_nr config:type="integer">1</partition_nr>
+          <raid_name>/dev/md2</raid_name>
+          <size>auto</size>
+        </partition>
+      </partitions>
+      <type config:type="symbol">CT_MD</type>
+      <use>all</use>
+    </drive>
+  </partitioning>
+
+  <raid config:type="list">
+    <listentry>
+      <device>/dev/md0</device>
+      <devices config:type="list">
+        <listentry>/dev/nvme0n1p1</listentry>
+        <listentry>/dev/nvme1n1p1</listentry>
+      </devices>
+      <raid_type>raid1</raid_type>
+    </listentry>
+    <listentry>
+      <device>/dev/md1</device>
+      <devices config:type="list">
+        <listentry>/dev/nvme0n1p2</listentry>
+        <listentry>/dev/nvme1n1p2</listentry>
+      </devices>
+      <raid_type>raid1</raid_type>
+    </listentry>
+    <listentry>
+      <device>/dev/md2</device>
+      <devices config:type="list">
+        <listentry>/dev/nvme0n1p3</listentry>
+        <listentry>/dev/nvme1n1p3</listentry>
+      </devices>
+      <raid_type>raid1</raid_type>
+    </listentry>
+  </raid>
+
+  <software>
+    <packages config:type="list">
+      <package>openssh</package>
+      <package>mdadm</package>
+      <package>parted</package>
+      <package>curl</package>
+      <package>wget</package>
+    </packages>
+    <patterns config:type="list">
+      <pattern>base</pattern>
+      <pattern>enhanced_base</pattern>
+    </patterns>
+  </software>
+
+  <services-manager>
+    <default_target>multi-user</default_target>
+    <services>
+      <enable config:type="list">
+        <service>sshd</service>
+      </enable>
+    </services>
+  </services-manager>
+
+  <scripts>
+    <post-scripts config:type="list">
+      <script>
+        <source><![CDATA[
+#!/bin/bash
+# Post-installation script to prepare for Harvester
+
+echo "RAID1 setup completed successfully" > /tmp/raid-setup-complete.log
+echo "Boot partition: /dev/md0 (1GB)" >> /tmp/raid-setup-complete.log
+echo "Harvester partition: /dev/md1 (200GB)" >> /tmp/raid-setup-complete.log
+echo "Data partition: /dev/md2 (remaining space)" >> /tmp/raid-setup-complete.log
+
+# Show RAID status
+cat /proc/mdstat >> /tmp/raid-setup-complete.log
+
+# Enable SSH access
+systemctl enable sshd
+systemctl start sshd
+
+# Create info file for Harvester installation
+echo "Ready for Harvester installation on /dev/md1" > /harvester/READY_FOR_HARVESTER
+        ]]></source>
+      </script>
+    </post-scripts>
+  </scripts>
+
+</profile>
