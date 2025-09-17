@@ -19,4 +19,15 @@ env/
 
 # OS files
 .DS_Store
-Thumbs.db
+Thumbs.db# Terraform
+terraform/.terraform/
+terraform/.env
+terraform/terraform.tfstate*
+
+# OVH API Configuration
+ovh.conf
+
+# Python
+venv/
+__pycache__/
+*.pyc

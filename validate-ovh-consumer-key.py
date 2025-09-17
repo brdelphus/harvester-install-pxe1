@@ -27,16 +27,16 @@ def validate_consumer_key():
             application_secret=config['default']['application_secret']
         )
 
-        # Request access rules
+        # Request access rules - server reinstall permissions
         access_rules = [
             {'method': 'GET', 'path': '/me'},
             {'method': 'GET', 'path': '/dedicated/server'},
             {'method': 'GET', 'path': '/dedicated/server/*'},
             {'method': 'PUT', 'path': '/dedicated/server/*'},
             {'method': 'POST', 'path': '/dedicated/server/*/reboot'},
-            {'method': 'GET', 'path': '/dedicated/server/*/boot'},
-            {'method': 'PUT', 'path': '/dedicated/server/*/boot'},
-            {'method': 'GET', 'path': '/dedicated/server/*/task'},
+            {'method': 'POST', 'path': '/dedicated/server/*/reinstall'},
+            {'method': 'GET', 'path': '/dedicated/installationTemplate'},
+            {'method': 'GET', 'path': '/dedicated/installationTemplate/*'},
         ]
 
         print("🔑 Requesting new consumer key...")
@@ -63,9 +63,9 @@ def validate_consumer_key():
         print()
         print("Updated ovh.conf should look like:")
         print("[default]")
-        print("endpoint=ovh-ca")
-        print("application_key=3a1dc93e151df1d9")
-        print("application_secret=2a5c04587df7b1944adf80d0bd4fd97e")
+        print(f"endpoint={config['default']['endpoint']}")
+        print(f"application_key={config['default']['application_key']}")
+        print(f"application_secret={config['default']['application_secret']}")
         print(f"consumer_key={validation['consumerKey']}")
 
         return validation['consumerKey']

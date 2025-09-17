@@ -44,13 +44,13 @@ class OVHHarvesterDeployer:
                 cloud_init_url = "https://raw.githubusercontent.com/brdelphus/harvester-install-pxe1/refs/heads/main/harvester-config.yaml"
 
         if stage == "raid_setup":
-            # Stage 1: Boot openSUSE Leap 15.6 for RAID setup
+            # Stage 1: Boot Ubuntu Server
             return f"""#!ipxe
 
-# Stage 1: Boot openSUSE Leap 15.6 for RAID1 Setup
+# Boot Ubuntu Server
 dhcp
-kernel https://download.opensuse.org/distribution/leap/15.6/repo/oss/boot/x86_64/loader/linux install=https://download.opensuse.org/distribution/leap/15.6/repo/oss/ autoyast={cloud_init_url} console=tty1 console=ttyS0,115200n8
-initrd https://download.opensuse.org/distribution/leap/15.6/repo/oss/boot/x86_64/loader/initrd
+sanboot --no-describe --drive 0x80 http://archive.ubuntu.com/ubuntu/ls-lR.gz ||
+kernel http://releases.ubuntu.com/22.04/ubuntu-22.04.5-live-server-amd64.iso
 boot"""
         else:
             # Stage 2: Boot Harvester for installation on prepared RAID
@@ -277,11 +277,7 @@ def main():
         print("\n👋 Deployment cancelled")
         return
 
-    # Select deployment stage
-    print("\n🔧 Deployment Stage Selection:")
-    print("1. Stage 1: RAID1 setup (200GB Harvester partition)")
-    print("2. Stage 2: Harvester installation (on prepared RAID)")
-    stage_choice = input("Select stage (1/2): ").strip()
+    # Direct Harvester installation
 
     # Optional: Custom cloud-init URL
     print("\n🔧 Configuration options:")
@@ -289,45 +285,24 @@ def main():
     cloud_init_url = custom_url if custom_url else None
 
     # Confirm deployment
-    if stage_choice == "1":
-        print(f"\n⚠️  About to start Stage 1 on: {server_name}")
-        print("   This will:")
-        print("   - Reboot the server")
-        print("   - Set up RAID1 array")
-        print("   - Create 200GB partition for Harvester")
-        print("   - Leave remaining space for user data")
-        confirm = input("Continue with Stage 1? (yes/no): ").strip().lower()
+    print(f"\n⚠️  About to install Harvester on: {server_name}")
+    print("   This will:")
+    print("   - Configure iPXE boot")
+    print("   - Install Harvester HCI")
+    print("   - Use prepared RAID1 partition")
+    confirm = input("Continue with Harvester installation? (yes/no): ").strip().lower()
 
-        if confirm != 'yes':
-            print("👋 Stage 1 cancelled")
-            return
-
-        # Execute Stage 1
-        success = deployer.deploy_harvester_two_stage(server_name, cloud_init_url)
-
-    elif stage_choice == "2":
-        print(f"\n⚠️  About to start Stage 2 on: {server_name}")
-        print("   This will:")
-        print("   - Reboot the server")
-        print("   - Install Harvester on /dev/md0p1")
-        print("   - Configure HCI cluster")
-        confirm = input("Continue with Stage 2? (yes/no): ").strip().lower()
-
-        if confirm != 'yes':
-            print("👋 Stage 2 cancelled")
-            return
-
-        # Execute Stage 2
-        success = deployer.deploy_harvester_stage_two(server_name, cloud_init_url)
-
-    else:
-        print("❌ Invalid stage selection")
+    if confirm != 'yes':
+        print("👋 Harvester installation cancelled")
         return
 
+    # Execute Harvester installation
+    success = deployer.deploy_harvester_stage_two(server_name, cloud_init_url)
+
     if success:
-        print(f"\n✅ Stage {stage_choice} initiated successfully!")
+        print(f"\n✅ Harvester installation initiated successfully!")
     else:
-        print(f"\n❌ Stage {stage_choice} failed!")
+        print(f"\n❌ Harvester installation failed!")
 
 if __name__ == "__main__":
     main()
