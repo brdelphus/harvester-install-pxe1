@@ -44,13 +44,13 @@ class OVHHarvesterDeployer:
                 cloud_init_url = "https://raw.githubusercontent.com/brdelphus/harvester-install-pxe1/refs/heads/main/harvester-config.yaml"
 
         if stage == "raid_setup":
-            # Stage 1: Boot Ubuntu cloud image for RAID setup
+            # Stage 1: Boot Ubuntu 24.04 netboot for RAID setup
             return f"""#!ipxe
 
-# Stage 1: Boot Ubuntu Cloud Image for RAID1 Setup
+# Stage 1: Boot Ubuntu 24.04 Netboot for RAID1 Setup
 dhcp
-kernel http://cloud-images.ubuntu.com/releases/22.04/release/unpacked/ubuntu-22.04-server-cloudimg-amd64-vmlinuz ip=dhcp url={cloud_init_url} autoinstall ds=nocloud-net;s={cloud_init_url.rsplit('/', 1)[0]}/
-initrd http://cloud-images.ubuntu.com/releases/22.04/release/unpacked/ubuntu-22.04-server-cloudimg-amd64-initrd-generic
+kernel https://releases.ubuntu.com/24.04/netboot/amd64/linux ip=dhcp autoinstall ds=nocloud;s={cloud_init_url.rsplit('/', 1)[0]}/ url=https://releases.ubuntu.com/24.04/ubuntu-24.04.3-live-server-amd64.iso console=tty1 console=ttyS0,115200n8
+initrd https://releases.ubuntu.com/24.04/netboot/amd64/initrd
 boot"""
         else:
             # Stage 2: Boot Harvester for installation on prepared RAID
