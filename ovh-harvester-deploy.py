@@ -49,7 +49,7 @@ class OVHHarvesterDeployer:
 
 # Stage 1: Boot Ubuntu 24.04 Netboot for RAID1 Setup
 dhcp
-kernel https://releases.ubuntu.com/24.04/netboot/amd64/linux ip=dhcp autoinstall ds=nocloud;s={cloud_init_url.rsplit('/', 1)[0]}/ url=https://releases.ubuntu.com/24.04/ubuntu-24.04.3-live-server-amd64.iso console=tty1 console=ttyS0,115200n8
+kernel https://releases.ubuntu.com/24.04/netboot/amd64/linux root=/dev/ram0 ramdisk_size=1500000 cloud-config-url={cloud_init_url} ip=dhcp url=https://releases.ubuntu.com/24.04/ubuntu-24.04.3-live-server-amd64.iso autoinstall console=tty1 console=ttyS0,115200n8
 initrd https://releases.ubuntu.com/24.04/netboot/amd64/initrd
 boot"""
         else:
