@@ -241,11 +241,13 @@ write_files:
       vm.dirty_expire_centisecs=200
 
 # Harvester configuration for optimized RAID
-harvester_config:
-  server_url: ""
-  token: ""
+scheme_version: 1
+server_url: ""
+token: "harvester-cluster-token"
+vip: 148.113.208.186
+vip_mode: static
 
-  networks:
+networks:
     harvester-mgmt:
       interfaces:
         - name: harvester-mgmt
