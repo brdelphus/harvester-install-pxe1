@@ -8,6 +8,7 @@ import ovh
 import time
 import sys
 import json
+import os
 
 class OVHHarvesterDeployer:
     def __init__(self, endpoint='ovh-ca'):
@@ -25,23 +26,39 @@ class OVHHarvesterDeployer:
         try:
             self.client = ovh.Client(
                 endpoint=endpoint,
-                config_file='./ovh.conf'
+                application_key=os.environ['OVH_APPLICATION_KEY'],
+                application_secret=os.environ['OVH_APPLICATION_SECRET'],
+                consumer_key=os.environ['OVH_CONSUMER_KEY']
             )
         except Exception as e:
             print(f"❌ Failed to initialize OVH client: {e}")
             print("Please ensure ovh.conf file exists with your API credentials")
             sys.exit(1)
 
-    def get_ipxe_script(self, cloud_init_url=None):
-        """Generate iPXE script for Harvester deployment"""
+    def get_ipxe_script(self, cloud_init_url=None, stage="raid_setup"):
+        """Generate iPXE script for two-stage deployment"""
         if cloud_init_url is None:
-            cloud_init_url = "https://raw.githubusercontent.com/brdelphus/harvester-install-pxe1/refs/heads/main/harvester-raid1-optimized.yaml"
+            if stage == "raid_setup":
+                cloud_init_url = "https://raw.githubusercontent.com/brdelphus/harvester-install-pxe1/refs/heads/main/cloud-init-raid-setup.yaml"
+            else:
+                cloud_init_url = "https://raw.githubusercontent.com/brdelphus/harvester-install-pxe1/refs/heads/main/harvester-config.yaml"
 
-        # Follow working example pattern: GitHub for kernel/initrd, Rancher CDN for rootfs
-        return f"""#!ipxe
+        if stage == "raid_setup":
+            # Stage 1: Boot Ubuntu cloud image for RAID setup
+            return f"""#!ipxe
 
+# Stage 1: Boot Ubuntu Cloud Image for RAID1 Setup
 dhcp
-kernel https://github.com/harvester/harvester/releases/download/v1.6.0/harvester-v1.6.0-vmlinuz-amd64 initrd=harvester-v1.6.0-initrd-amd64 ip=dhcp net.ifnames=1 rd.cos.disable rd.noverifyssl root=live:https://releases.rancher.com/harvester/v1.6.0/harvester-v1.6.0-rootfs-amd64.squashfs console=tty1 harvester.install.automatic=true harvester.install.config_url={cloud_init_url}
+kernel http://cloud-images.ubuntu.com/releases/22.04/release/unpacked/ubuntu-22.04-server-cloudimg-amd64-vmlinuz ip=dhcp url={cloud_init_url} autoinstall ds=nocloud-net;s={cloud_init_url.rsplit('/', 1)[0]}/
+initrd http://cloud-images.ubuntu.com/releases/22.04/release/unpacked/ubuntu-22.04-server-cloudimg-amd64-initrd-generic
+boot"""
+        else:
+            # Stage 2: Boot Harvester for installation on prepared RAID
+            return f"""#!ipxe
+
+# Stage 2: Boot Harvester for installation on prepared RAID1
+dhcp
+kernel https://github.com/harvester/harvester/releases/download/v1.6.0/harvester-v1.6.0-vmlinuz-amd64 initrd=harvester-v1.6.0-initrd-amd64 ip=dhcp net.ifnames=1 rd.cos.disable rd.noverifyssl root=live:https://releases.rancher.com/harvester/v1.6.0/harvester-v1.6.0-rootfs-amd64.squashfs console=tty1 harvester.install.config_url={cloud_init_url}
 initrd https://github.com/harvester/harvester/releases/download/v1.6.0/harvester-v1.6.0-initrd-amd64
 boot"""
 
@@ -84,13 +101,13 @@ boot"""
             print(f"❌ Failed to get server info: {e}")
             return None
 
-    def configure_ipxe_boot(self, server_name, cloud_init_url=None):
-        """Configure server for iPXE boot with Harvester"""
+    def configure_ipxe_boot(self, server_name, cloud_init_url=None, stage="raid_setup"):
+        """Configure server for iPXE boot with two-stage deployment"""
         try:
-            print(f"🔧 Configuring iPXE boot for {server_name}...")
+            print(f"🔧 Configuring iPXE boot for {server_name} (Stage: {stage})...")
 
-            # Generate iPXE script
-            ipxe_script = self.get_ipxe_script(cloud_init_url)
+            # Generate iPXE script for the specified stage
+            ipxe_script = self.get_ipxe_script(cloud_init_url, stage)
 
             # Configure boot parameters
             result = self.client.put(f'/dedicated/server/{server_name}',
@@ -99,6 +116,7 @@ boot"""
 
             print("✅ iPXE boot configuration applied successfully")
             print(f"   Boot type: network")
+            print(f"   Stage: {stage}")
             print(f"   Script length: {len(ipxe_script)} characters")
 
             return True
@@ -154,21 +172,55 @@ boot"""
 
         print("ℹ️  Monitoring completed. Check server accessibility manually.")
 
-    def deploy_harvester(self, server_name, cloud_init_url=None, auto_reboot=True):
-        """Complete Harvester deployment process"""
-        print("🚀 Starting Harvester HCI deployment...")
+    def deploy_harvester_two_stage(self, server_name, cloud_init_url=None, auto_reboot=True):
+        """Two-stage Harvester deployment: RAID setup + Harvester installation"""
+        print("🚀 Starting Two-Stage Harvester HCI deployment...")
         print(f"   Target server: {server_name}")
-        print(f"   Cloud-init URL: {cloud_init_url or 'default'}")
+        print(f"   Stage 1: RAID1 setup with 200GB Harvester partition")
+        print(f"   Stage 2: Harvester installation on prepared partition")
 
         # Get server info
         if not self.get_server_info(server_name):
             return False
 
-        # Configure iPXE boot
-        if not self.configure_ipxe_boot(server_name, cloud_init_url):
+        # Stage 1: Configure RAID setup
+        print("\n=== Stage 1: RAID1 Setup ===")
+        if not self.configure_ipxe_boot(server_name, cloud_init_url, "raid_setup"):
             return False
 
-        # Reboot server
+        if auto_reboot:
+            if not self.reboot_server(server_name):
+                return False
+
+            print("⏳ Stage 1 in progress...")
+            print("   - RAID1 array creation")
+            print("   - 200GB partition for Harvester")
+            print("   - Remaining space for user data")
+            print("   - This will take 10-15 minutes")
+            print("\n📋 After Stage 1 completes:")
+            print("   1. Server will reboot automatically")
+            print("   2. Run this script again for Stage 2")
+            print("   3. Or manually reconfigure iPXE for Harvester installation")
+        else:
+            print("⏸️  Auto-reboot disabled for Stage 1. Please reboot server manually.")
+
+        return True
+
+    def deploy_harvester_stage_two(self, server_name, cloud_init_url=None, auto_reboot=True):
+        """Stage 2: Install Harvester on prepared RAID partition"""
+        print("🚀 Starting Stage 2: Harvester Installation...")
+        print(f"   Target server: {server_name}")
+        print(f"   Installing on prepared /dev/md0p1 (200GB)")
+
+        # Get server info
+        if not self.get_server_info(server_name):
+            return False
+
+        # Stage 2: Configure Harvester installation
+        print("\n=== Stage 2: Harvester Installation ===")
+        if not self.configure_ipxe_boot(server_name, cloud_init_url, "harvester"):
+            return False
+
         if auto_reboot:
             if not self.reboot_server(server_name):
                 return False
@@ -178,19 +230,19 @@ boot"""
         else:
             print("⏸️  Auto-reboot disabled. Please reboot server manually.")
 
-        print("🎉 Deployment process completed!")
-        print("\n📋 Next steps:")
-        print("   1. Monitor installation via OVH IPMI console")
-        print("   2. Wait 15-45 minutes for installation to complete")
-        print("   3. Access Harvester UI at https://<server-ip>:443")
-        print("   4. SSH access: ssh -i ~/.ssh/harvester_key rancher@<server-ip>")
+        print("🎉 Harvester deployment completed!")
+        print("\n📋 Final configuration:")
+        print("   - Harvester installed on /dev/md0p1 (200GB)")
+        print("   - User data partition: /dev/md0p2 (remaining RAID1 space)")
+        print("   - Access Harvester UI at https://148.113.208.186:443")
+        print("   - SSH access: ssh rancher@148.113.208.186")
 
         return True
 
 def main():
     """Main deployment function"""
-    print("🔷 OVHcloud Harvester HCI Deployment Tool")
-    print("=" * 50)
+    print("🔷 OVHcloud Harvester HCI Two-Stage Deployment Tool")
+    print("=" * 60)
 
     # Initialize deployer
     deployer = OVHHarvesterDeployer()
@@ -225,27 +277,57 @@ def main():
         print("\n👋 Deployment cancelled")
         return
 
+    # Select deployment stage
+    print("\n🔧 Deployment Stage Selection:")
+    print("1. Stage 1: RAID1 setup (200GB Harvester partition)")
+    print("2. Stage 2: Harvester installation (on prepared RAID)")
+    stage_choice = input("Select stage (1/2): ").strip()
+
     # Optional: Custom cloud-init URL
     print("\n🔧 Configuration options:")
     custom_url = input("Custom cloud-init URL (press Enter for default): ").strip()
     cloud_init_url = custom_url if custom_url else None
 
     # Confirm deployment
-    print(f"\n⚠️  About to deploy Harvester on: {server_name}")
-    print("   This will reboot the server and install Harvester HCI")
-    confirm = input("Continue? (yes/no): ").strip().lower()
+    if stage_choice == "1":
+        print(f"\n⚠️  About to start Stage 1 on: {server_name}")
+        print("   This will:")
+        print("   - Reboot the server")
+        print("   - Set up RAID1 array")
+        print("   - Create 200GB partition for Harvester")
+        print("   - Leave remaining space for user data")
+        confirm = input("Continue with Stage 1? (yes/no): ").strip().lower()
 
-    if confirm != 'yes':
-        print("👋 Deployment cancelled")
+        if confirm != 'yes':
+            print("👋 Stage 1 cancelled")
+            return
+
+        # Execute Stage 1
+        success = deployer.deploy_harvester_two_stage(server_name, cloud_init_url)
+
+    elif stage_choice == "2":
+        print(f"\n⚠️  About to start Stage 2 on: {server_name}")
+        print("   This will:")
+        print("   - Reboot the server")
+        print("   - Install Harvester on /dev/md0p1")
+        print("   - Configure HCI cluster")
+        confirm = input("Continue with Stage 2? (yes/no): ").strip().lower()
+
+        if confirm != 'yes':
+            print("👋 Stage 2 cancelled")
+            return
+
+        # Execute Stage 2
+        success = deployer.deploy_harvester_stage_two(server_name, cloud_init_url)
+
+    else:
+        print("❌ Invalid stage selection")
         return
 
-    # Execute deployment
-    success = deployer.deploy_harvester(server_name, cloud_init_url)
-
     if success:
-        print("\n✅ Deployment initiated successfully!")
+        print(f"\n✅ Stage {stage_choice} initiated successfully!")
     else:
-        print("\n❌ Deployment failed!")
+        print(f"\n❌ Stage {stage_choice} failed!")
 
 if __name__ == "__main__":
     main()

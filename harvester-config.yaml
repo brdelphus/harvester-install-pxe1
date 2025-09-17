@@ -1,0 +1,24 @@
+scheme_version: 1
+token: "harvester-cluster-token"
+
+os:
+  hostname: hv1
+  ssh_authorized_keys:
+    - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCVm0gzV/a5GHRjW25h1PKomRPHxYZK1Fz7YpDi+NTwpqQvMrw6lStU8DlSFpy03PzuzHdTTIBuonn5NGm5NJFO3p2sTXc+t0enPFghMUAcy8hGNvYFc9IzB7H378WblCRHLxN4+15t49VZPwwn6VRr6lASFFgSKL0kSkkDY8UUI5zaA1I8fsO8N9azC3IaoSQb6Gvx5FtQHtdWw792/nc6nE50vDXIrxXKM/4ICr5mLy1/drUIN8qZDDG6Kb4po0y9mk2fOHFaE7bHR7tIvLVY0vNSGgR/BmpAlSpaIGXo6MIFDKMiZmqiPFTEGJYYbOPusb9SY2U0HNL5dEnEqC7dN/C9W6oreSS3nmQz59pyYlaFt+YVt9z/w1ki9Htm7ujxifzSJr12N7OtMmTDJiXhK8wf8EPLA6y2wLdWfSkitMb848D0ELqwk7/q2z1xo/r1PG+/d/Khvoz6PtPwtA++KOsvjTTvv81qYs61Z2W9hTCuKNFluQzyaZuzPRrskzmzGCDc8h85o7NWNreMZiEAIHF9xtIQefDsTseirekLV0dDg/1Sx2A3QtMaCNd0cn0ggXmpWbjUDykb5AIloiMTqU6QvURiNysAokrJ3fc0UscI2DGXDTS2PQoC1AgHRCZyDEG4lD5x5JDI4YgxebhmmzwJagGhY2Z8+qB0C4CWHw== delphus@insight
+  password: "rancher123!"
+  dns_nameservers:
+    - 8.8.8.8
+    - 1.1.1.1
+  ntp_servers:
+    - 0.pool.ntp.org
+    - 1.pool.ntp.org
+
+install:
+  mode: create
+  device: /dev/sda
+  management_interface:
+    method: dhcp
+    interfaces:
+      - name: eth0
+  vip: 148.113.208.186
+  vip_mode: static

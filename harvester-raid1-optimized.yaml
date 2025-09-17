@@ -242,10 +242,7 @@ write_files:
 
 # Harvester configuration for optimized RAID
 scheme_version: 1
-server_url: ""
 token: "harvester-cluster-token"
-vip: 148.113.208.186
-vip_mode: static
 
 networks:
     harvester-mgmt:
@@ -282,6 +279,9 @@ networks:
       method: dhcp
     device: /dev/md0p1    # Install OS on 200GB partition
     data_disk: ""         # We'll handle data disks manually
+    iso_url: https://releases.rancher.com/harvester/v1.6.0/harvester-v1.6.0-amd64.iso
+    vip: 148.113.208.186
+    vip_mode: static
     tty: ttyS0,115200n8
 
 # Run setup commands

@@ -1,0 +1,132 @@
+#cloud-config
+
+# Stage 1: RAID1 setup with 200GB partition for Harvester
+hostname: hv1-setup
+users:
+  - name: rancher
+    groups: [sudo]
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCVm0gzV/a5GHRjW25h1PKomRPHxYZK1Fz7YpDi+NTwpqQvMrw6lStU8DlSFpy03PzuzHdTTIBuonn5NGm5NJFO3p2sTXc+t0enPFghMUAcy8hGNvYFc9IzB7H378WblCRHLxN4+15t49VZPwwn6VRr6lASFFgSKL0kSkkDY8UUI5zaA1I8fsO8N9azC3IaoSQb6Gvx5FtQHtdWw792/nc6nE50vDXIrxXKM/4ICr5mLy1/drUIN8qZDDG6Kb4po0y9mk2fOHFaE7bHR7tIvLVY0vNSGgR/BmpAlSpaIGXo6MIFDKMiZmqiPFTEGJYYbOPusb9SY2U0HNL5dEnEqC7dN/C9W6oreSS3nmQz59pyYlaFt+YVt9z/w1ki9Htm7ujxifzSJr12N7OtMmTDJiXhK8wf8EPLA6y2wLdWfSkitMb848D0ELqwk7/q2z1xo/r1PG+/d/Khvoz6PtPwtA++KOsvjTTvv81qYs61Z2W9hTCuKNFluQzyaZuzPRrskzmzGCDc8h85o7NWNreMZiEAIHF9xtIQefDsTseirekLV0dDg/1Sx2A3QtMaCNd0cn0ggXmpWbjUDykb5AIloiMTqU6QvURiNysAokrJ3fc0UscI2DGXDTS2PQoC1AgHRCZyDEG4lD5x5JDI4YgxebhmmzwJagGhY2Z8+qB0C4CWHw== delphus@insight
+
+packages:
+  - mdadm
+  - parted
+  - curl
+  - wget
+
+write_files:
+  - path: /tmp/setup-raid-and-harvester.sh
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/bin/bash
+      set -e
+
+      echo "=== RAID1 Setup with 200GB Harvester Partition ==="
+
+      # Stop existing arrays
+      mdadm --stop --scan 2>/dev/null || true
+      mdadm --zero-superblock /dev/nvme0n1 /dev/nvme1n1 2>/dev/null || true
+
+      # Create RAID1 array
+      echo "Creating RAID1 array..."
+      mdadm --create /dev/md0 \
+        --level=1 \
+        --raid-devices=2 \
+        --metadata=1.2 \
+        --assume-clean \
+        /dev/nvme0n1 /dev/nvme1n1
+
+      sleep 10
+
+      # Partition the RAID array
+      echo "Creating partitions..."
+      parted -s /dev/md0 mklabel gpt
+      parted -s /dev/md0 mkpart primary ext4 0% 200GB      # Harvester partition
+      parted -s /dev/md0 mkpart primary ext4 200GB 100%   # User data partition
+
+      sleep 5
+
+      # Format partitions
+      echo "Formatting partitions..."
+      mkfs.ext4 -F -L "harvester-root" /dev/md0p1
+      mkfs.ext4 -F -L "user-data" /dev/md0p2
+
+      # Save RAID config
+      mdadm --detail --scan >> /etc/mdadm/mdadm.conf
+
+      echo "=== RAID Configuration Complete ==="
+      cat /proc/mdstat
+      lsblk /dev/md0
+      echo "Harvester partition: /dev/md0p1 (200GB)"
+      echo "User data partition: /dev/md0p2 (remaining space)"
+
+      echo "=== Downloading and Starting Harvester Installation ==="
+
+      # Download Harvester ISO
+      mkdir -p /mnt/harvester
+      cd /mnt/harvester
+
+      echo "Downloading Harvester ISO..."
+      wget -O harvester.iso https://releases.rancher.com/harvester/v1.6.0/harvester-v1.6.0-amd64.iso
+
+      # Mount the ISO
+      mkdir -p /mnt/iso
+      mount -o loop harvester.iso /mnt/iso
+
+      # Extract kernel and initrd
+      cp /mnt/iso/boot/harvester* /tmp/
+
+      # Create Harvester config for installation on md0p1
+      cat > /tmp/harvester-install-config.yaml << 'EOF'
+      scheme_version: 1
+      token: "harvester-cluster-token"
+
+      os:
+        hostname: hv1
+        ssh_authorized_keys:
+          - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCVm0gzV/a5GHRjW25h1PKomRPHxYZK1Fz7YpDi+NTwpqQvMrw6lStU8DlSFpy03PzuzHdTTIBuonn5NGm5NJFO3p2sTXc+t0enPFghMUAcy8hGNvYFc9IzB7H378WblCRHLxN4+15t49VZPwwn6VRr6lASFFgSKL0kSkkDY8UUI5zaA1I8fsO8N9azC3IaoSQb6Gvx5FtQHtdWw792/nc6nE50vDXIrxXKM/4ICr5mLy1/drUIN8qZDDG6Kb4po0y9mk2fOHFaE7bHR7tIvLVY0vNSGgR/BmpAlSpaIGXo6MIFDKMiZmqiPFTEGJYYbOPusb9SY2U0HNL5dEnEqC7dN/C9W6oreSS3nmQz59pyYlaFt+YVt9z/w1ki9Htm7ujxifzSJr12N7OtMmTDJiXhK8wf8EPLA6y2wLdWfSkitMb848D0ELqwk7/q2z1xo/r1PG+/d/Khvoz6PtPwtA++KOsvjTTvv81qYs61Z2W9hTCuKNFluQzyaZuzPRrskzmzGCDc8h85o7NWNreMZiEAIHF9xtIQefDsTseirekLV0dDg/1Sx2A3QtMaCNd0cn0ggXmpWbjUDykb5AIloiMTqU6QvURiNysAokrJ3fc0UscI2DGXDTS2PQoC1AgHRCZyDEG4lD5x5JDI4YgxebhmmzwJagGhY2Z8+qB0C4CWHw== delphus@insight
+        password: "rancher123!"
+        dns_nameservers:
+          - 8.8.8.8
+          - 1.1.1.1
+        ntp_servers:
+          - 0.pool.ntp.org
+          - 1.pool.ntp.org
+
+      install:
+        mode: create
+        device: /dev/md0p1
+        management_interface:
+          method: dhcp
+          interfaces:
+            - name: eth0
+        vip: 148.113.208.186
+        vip_mode: static
+      EOF
+
+      echo "=== Manual Harvester Installation Instructions ==="
+      echo "1. RAID1 setup completed successfully"
+      echo "2. Harvester partition ready at /dev/md0p1 (200GB)"
+      echo "3. User data partition available at /dev/md0p2"
+      echo "4. Harvester ISO downloaded to /mnt/harvester/harvester.iso"
+      echo "5. Config file created at /tmp/harvester-install-config.yaml"
+      echo ""
+      echo "To continue with Harvester installation:"
+      echo "- Reboot and boot from the Harvester ISO"
+      echo "- During installation, select /dev/md0p1 as the target device"
+      echo "- Use the config file for automated installation"
+      echo ""
+      echo "Rebooting in 30 seconds..."
+      sleep 30
+      reboot
+
+runcmd:
+  - /tmp/setup-raid-and-harvester.sh
+
+power_state:
+  mode: reboot
+  delay: "+2"
+  message: "RAID setup complete, ready for Harvester installation"
